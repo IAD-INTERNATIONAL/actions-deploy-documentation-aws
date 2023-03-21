@@ -1,0 +1,6 @@
+---
+name: 'Semantic Release'
+description: 'Run semantic-release'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'

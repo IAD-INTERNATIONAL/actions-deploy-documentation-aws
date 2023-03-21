@@ -1,0 +1,49 @@
+name: "Deploy documentation on AWS for PlayIAD"
+description: "Deploy PlayIAD documentation based on inputs value"
+
+inputs:
+  documentation_name:
+    required: true
+    description: "Documentation name, must be identical with the key of `documentation_list` in `infra-documentation-hosting/production.tf`"
+  invalidation_path_list:
+    required: false
+    default: '"/*"'
+    description: "Path list for the Cloudfront cache invaldiation, default is `'\"/*\"'`, if multiple path are specified spearate them using space and use double quote foe each individual path in the list like this `'\"/*.js\"' '\"/*.html\"'`"
+  aws_role_arn:
+    required: true
+    description: "AWS role ARN to assume"
+
+runs:
+  using: "composite"
+  steps:
+
+    - name: Download documentation
+      uses: actions/download-artifact@v3
+      with:
+        name: ${{ inputs.documentation_name }}-documentation
+        path: ${{ runner.temp }}/documentation
+    - name: Assume role
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        role-to-assume: ${{ inputs.aws_role_arn }}
+        role-duration-seconds: 900
+        role-session-name: github
+        aws-region: eu-west-1
+
+    - name: Push documentation to S3
+      shell: bash
+      run: |
+        BUCKET_NAME=$(aws ssm get-parameter --name production-${{ inputs.documentation_name }}-s3-bucket --query Parameter.Value --output text)
+        echo "Bucket name: $BUCKET_NAME"
+        echo "Listing content of ${{ runner.temp }}/documentation"
+        ls ${{ runner.temp }}/documentation
+        aws s3 sync ${{ runner.temp }}/documentation s3://$BUCKET_NAME/ --delete --no-progress
+        echo "S3 sync done"
+
+    - name: Invalidate Cloudfront cache
+      shell: bash
+      run: |
+        CLOUDFRONT_DIST_ID=$(aws ssm get-parameter --name production-${{ inputs.documentation_name }}-cf-dist-id --query Parameter.Value --output text)
+        echo "Cloudfront distribution ID: $CLOUDFRONT_DIST_ID"
+        echo "Input invalidation_path_list: ${{ inputs.invalidation_path_list }}"
+        aws cloudfront create-invalidation --distribution-id $CLOUDFRONT_DIST_ID --paths ${{ inputs.invalidation_path_list }}
