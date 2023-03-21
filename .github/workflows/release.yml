@@ -11,9 +11,7 @@ jobs:
   release:
     name: Release
     if: github.ref == 'refs/heads/main'
-    runs-on: [self-hosted, semantic-release]
-    needs:
-      - test
+    runs-on: [self-hosted, semantic-release, default]
     env:
       REPO_URL: ${{ github.event.repository.url }}
       DOCKER_REGISTRY: 219665457812.dkr.ecr.eu-west-1.amazonaws.com
